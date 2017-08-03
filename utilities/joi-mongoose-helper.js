@@ -65,9 +65,7 @@ module.exports = {
       }
     }
 
-    var readModel = Joi.object(readModelBase).meta({
-      className: model.modelName + "ReadModel"
-    });
+    var readModel = Joi.object(readModelBase).label(model.modelName + "ReadModel");
 
     return readModel;
   },
@@ -110,9 +108,7 @@ module.exports = {
       }
     }
 
-    var updateModel = Joi.object(updateModelBase).meta({
-      className: model.modelName + "UpdateModel"
-    });
+    var updateModel = Joi.object(updateModelBase).label(model.modelName + "UpdateModel");
 
     return updateModel;
   },
@@ -156,9 +152,7 @@ module.exports = {
       }
     }
 
-    var createModel = Joi.object(createModelBase).meta({
-      className: model.modelName + "CreateModel"
-    });
+    var createModel = Joi.object(createModelBase).label(model.modelName + "CreateModel");
 
     return createModel;
   },
@@ -191,9 +185,7 @@ module.exports = {
       }
     }
 
-    var associationModel = Joi.object(associationModelBase).meta({
-      className: model.modelName + "AssociationModel"
-    });
+    var associationModel = Joi.object(associationModelBase).label(model.modelName + "AssociationModel");
 
     return associationModel;
   },
@@ -209,9 +201,18 @@ module.exports = {
 
     assert(field.type, "incorrect field format");
 
-    switch (field.type.schemaName) {
+    let isArray = false;
+    let fieldCopy = _.extend({}, field);
+
+
+    if (_.isArray(fieldCopy.type)) {
+      isArray = true;
+      fieldCopy.type = fieldCopy.type[0];
+    }
+
+    switch (fieldCopy.type.schemaName) {
       case 'ObjectId':
-        model = Joi.objectId();
+        model = Joi.objectId().description("objectId");
         break;
       case 'Boolean':
         model = Joi.bool();
@@ -223,8 +224,44 @@ module.exports = {
         model = Joi.date();
         break;
       case 'String':
-        if (field.enum) {
-          model = Joi.any().only(field.enum);
+        if (fieldCopy.enum) {
+          model = Joi.any().only(fieldCopy.enum);
+        }
+        else if (fieldCopy.stringType) {
+          switch (fieldCopy.stringType) {
+            case 'uri':
+              model = Joi.string().uri();
+              break;
+            case 'email':
+              model = Joi.string().email();
+              break;
+            case 'token':
+              model = Joi.string().token();
+              break;
+            case 'hex':
+              model = Joi.string().hex();
+              break;
+            case 'base64':
+              model = Joi.string().base64();
+              break;
+            case 'hostname':
+              model = Joi.string().hostname();
+              break;
+            case 'lowercase':
+              model = Joi.string().lowercase();
+              break;
+            case 'uppercase':
+              model = Joi.string().uppercase();
+              break;
+            case 'trim':
+              model = Joi.string().trim();
+              break;
+            case 'creditCard':
+              model = Joi.string().creditCard();
+              break;
+            default:
+              model = Joi.string().allow('');
+          }
         }
         else {
           model = Joi.string().allow('');
@@ -235,9 +272,22 @@ module.exports = {
         break;
     }
 
-    if (field.allowNull) {
+
+    if (fieldCopy.allowNull) {
       model = model.allow(null);
     }
+
+    if (isArray) {
+      model = Joi.array().items(model);
+    }
+
+    if (fieldCopy.description) {
+      model = model.description(fieldCopy.description);
+    }
+    else if (fieldCopy.stringType) {
+      model = model.description(fieldCopy.stringType);
+    }
+
 
     return model;
   }

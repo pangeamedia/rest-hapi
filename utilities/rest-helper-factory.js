@@ -176,6 +176,8 @@ module.exports = function (logger, mongoose, server) {
       if (associations) {
         queryValidation.$embed = Joi.alternatives().try(Joi.array().items(Joi.string())
             .description('A set of complex object properties to populate. Valid first level values include ' + Object.keys(associations).toString().replace(/,/g,', ')), Joi.string());
+        queryValidation.$flatten = Joi.boolean()
+            .description('Set to true to flatten embedded arrays, i.e. remove linking-model data.');
       }
 
       var readModel = joiMongooseHelper.generateJoiReadModel(model, Log);
@@ -273,6 +275,8 @@ module.exports = function (logger, mongoose, server) {
       if (associations) {
         queryValidation.$embed = Joi.alternatives().try(Joi.array().items(Joi.string())
             .description('A set of complex object properties to populate. Valid first level values include ' + Object.keys(associations).toString().replace(/,/g,', ')), Joi.string());
+        queryValidation.$flatten = Joi.boolean()
+            .description('Set to true to flatten embedded arrays, i.e. remove linking-model data.');
       }
 
       var readModel = model.readModel || joiMongooseHelper.generateJoiReadModel(model, Log);
@@ -899,9 +903,10 @@ module.exports = function (logger, mongoose, server) {
 
       if (association.include && association.include.through) {
         payloadValidation = joiMongooseHelper.generateJoiAssociationModel(association.include.through, Log);
+        var label =  payloadValidation._flags.label + "_many";
         payloadValidation = payloadValidation.keys({
           childId: Joi.objectId()
-        });
+        }).label(label);
         payloadValidation = Joi.array().items(payloadValidation).required();
       } 
       else {
@@ -1125,6 +1130,8 @@ module.exports = function (logger, mongoose, server) {
       if (associations) {
         queryValidation.$embed = Joi.alternatives().try(Joi.array().items(Joi.string())
             .description('A set of complex object properties to populate. Valid first level values include ' + Object.keys(associations).toString().replace(/,/g,', ')), Joi.string());
+        queryValidation.$flatten = Joi.boolean()
+            .description('Set to true to flatten embedded arrays, i.e. remove linking-model data.');
       }
 
       var readModel = joiMongooseHelper.generateJoiReadModel(childModel, Log);
