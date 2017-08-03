@@ -64,6 +64,8 @@ function register(server, options, next) {
         .then(function(models) {
 
             let swaggerOptions = {
+                swaggerUI: config.swaggerUI,
+                documentationPage: config.documentationPage,
                 documentationPath: '/',
                 info: {
                     title: config.appTitle,
