@@ -63,16 +63,18 @@ function register(server, options, next) {
     promise
         .then(function(models) {
 
-            let swaggerOptions = {
-                swaggerUI: config.swaggerUI,
-                documentationPage: config.documentationPage,
-                documentationPath: '/',
-                info: {
-                    title: config.appTitle,
-                    version: config.version
-                },
-                expanded: config.docExpansion
-            };
+            let swaggerOptions =
+                extend(
+                    true,
+                    {
+                        documentationPath: '/',
+                        info: {
+                            title: config.appTitle,
+                            version: config.version
+                        }
+                    },
+                    config.swagger
+                );
 
             server.register([
                     Inert,
