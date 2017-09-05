@@ -734,13 +734,19 @@ function _updateHandler(model, _id, request, Log) {
 
     return promise
         .then(function (payload) {
+          var mongooseQuery = {};
 
           if (config.enableUpdatedAt) {
             payload.updatedAt = new Date();
           }
 
+          let query = payload.$query || {};
+          delete payload.$query;
+
           //TODO: support eventLogs and log all property updates in one document rather than one document per property update
-          return model.findByIdAndUpdate(_id, payload)
+          mongooseQuery = model.findById(_id);
+          mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log);
+          return mongooseQuery.findOneAndUpdate(payload)
               .then(function (result) {
                 if (result) {
                   //TODO: log all updated/added associations
