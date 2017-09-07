@@ -279,128 +279,148 @@ function _listHandler(model, request, Log) {
   let query = extend({}, request.query);
   let logError = false;
   try {
-    var mongooseQuery = {};
-    var count = "";
-    var flatten = false;
-    if (query.$flatten) {
-      flatten = true;
+    var promise = {};
+    if (model.routeOptions && model.routeOptions.list && model.routeOptions.list.pre) {
+      promise = model.routeOptions.list.pre(query, request, Log);
     }
-    delete query.$flatten;
-    if (query.$count) {
-      mongooseQuery = model.count();
-      mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log).lean();
-      return mongooseQuery.exec()
-          .then(function(result) {
-            Log.log("Result: %s", JSON.stringify(result));
-            return result;
-          })
+    else {
+      promise = Q.when(query);
     }
 
-    mongooseQuery = model.find();
-    mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log).lean();
-    return mongooseQuery.count()
-        .then(function (result) {
-          count = result;
-          mongooseQuery = QueryHelper.paginate(query, mongooseQuery, Log);
-          return mongooseQuery.exec('find')
-        })
-        .then(function (result) {
-
-          var promise = {};
-          if (model.routeOptions && model.routeOptions.list && model.routeOptions.list.post) {
-            promise = model.routeOptions.list.post(request, result, Log);
+    return promise
+        .then(function (query){
+          var mongooseQuery = {};
+          var count = "";
+          var flatten = false;
+          if (query.$flatten) {
+            flatten = true;
           }
-          else {
-            promise = Q.when(result);
-          }
-
-          return promise
-              .then(function (result) {
-                result = result.map(function (data) {
-                  var result = data;
-                  if (model.routeOptions) {
-                    var associations = model.routeOptions.associations;
-                    for (var associationKey in associations) {
-                      var association = associations[associationKey];
-                      if (association.type === "ONE_MANY" && data[associationKey]) {//EXPL: we have to manually populate the return value for virtual (e.g. ONE_MANY) associations
-                        if (data[associationKey].toJSON) {//TODO: look into .toJSON and see why it appears sometimes and not other times
-                          result[associationKey] = data[associationKey].toJSON();
-                        }
-                        else {
-                          result[associationKey] = data[associationKey];
-                        }
-                      }
-                      if (association.type === "MANY_MANY" && flatten === true) {//EXPL: remove additional fields and return a flattened array
-                        if (result[associationKey]) {
-                          result[associationKey] = result[associationKey].map(function(object) {
-                            object = object[association.model];
-                            return object;
-                          })
-                        }
-                      }
-                    }
-                  }
-
-                  if (config.enableSoftDelete && config.filterDeletedEmbeds) {//EXPL: remove soft deleted documents from populated properties
-                    filterDeletedEmbeds(result, {}, "", 0, Log);
-                  }
-
-                  if (result._id) {
-                    result._id = result._id.toString();//EXPL: _id must be a string to pass validation
-                  }
-
+          delete query.$flatten;
+          if (query.$count) {
+            mongooseQuery = model.count();
+            mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log).lean();
+            return mongooseQuery.exec()
+                .then(function(result) {
                   Log.log("Result: %s", JSON.stringify(result));
-                  return result
-                });
+                  return result;
+                })
+          }
 
-                
-                const pages = {
-                    current: query.$page || 1,
-                    prev: 0,
-                    hasPrev: false,
-                    next: 0,
-                    hasNext: false,
-                    total: 0
-                };
-                const items = {
-                    limit: query.$limit,
-                    begin: (((query.$page || 1) * query.$limit) - query.$limit) + 1,
-                    end: (query.$page || 1) * query.$limit,
-                    total: count
-                };
+          mongooseQuery = model.find();
+          mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log).lean();
+          return mongooseQuery.count()
+              .then(function (result) {
+                count = result;
+                mongooseQuery = QueryHelper.paginate(query, mongooseQuery, Log);
+                return mongooseQuery.exec('find')
+              })
+              .then(function (result) {
 
-                pages.total = Math.ceil(count / query.$limit);
-                pages.next = pages.current + 1;
-                pages.hasNext = pages.next <= pages.total;
-                pages.prev = pages.current - 1;
-                pages.hasPrev = pages.prev !== 0;
-                if (items.begin > items.total) {
-                  items.begin = items.total;
+                var promise = {};
+                if (model.routeOptions && model.routeOptions.list && model.routeOptions.list.post) {
+                  promise = model.routeOptions.list.post(request, result, Log);
                 }
-                if (items.end > items.total) {
-                  items.end = items.total;
+                else {
+                  promise = Q.when(result);
                 }
 
-                return { docs: result, pages: pages, items: items };
+                return promise
+                    .then(function (result) {
+                      result = result.map(function (data) {
+                        var result = data;
+                        if (model.routeOptions) {
+                          var associations = model.routeOptions.associations;
+                          for (var associationKey in associations) {
+                            var association = associations[associationKey];
+                            if (association.type === "ONE_MANY" && data[associationKey]) {//EXPL: we have to manually populate the return value for virtual (e.g. ONE_MANY) associations
+                              if (data[associationKey].toJSON) {//TODO: look into .toJSON and see why it appears sometimes and not other times
+                                result[associationKey] = data[associationKey].toJSON();
+                              }
+                              else {
+                                result[associationKey] = data[associationKey];
+                              }
+                            }
+                            if (association.type === "MANY_MANY" && flatten === true) {//EXPL: remove additional fields and return a flattened array
+                              if (result[associationKey]) {
+                                result[associationKey] = result[associationKey].map(function(object) {
+                                  object = object[association.model];
+                                  return object;
+                                })
+                              }
+                            }
+                          }
+                        }
+
+                        if (config.enableSoftDelete && config.filterDeletedEmbeds) {//EXPL: remove soft deleted documents from populated properties
+                          filterDeletedEmbeds(result, {}, "", 0, Log);
+                        }
+
+                        if (result._id) {
+                          result._id = result._id.toString();//EXPL: _id must be a string to pass validation
+                        }
+
+                        Log.log("Result: %s", JSON.stringify(result));
+                        return result
+                      });
+
+
+                      const pages = {
+                        current: query.$page || 1,
+                        prev: 0,
+                        hasPrev: false,
+                        next: 0,
+                        hasNext: false,
+                        total: 0
+                      };
+                      const items = {
+                        limit: query.$limit,
+                        begin: (((query.$page || 1) * query.$limit) - query.$limit) + 1,
+                        end: (query.$page || 1) * query.$limit,
+                        total: count
+                      };
+
+                      pages.total = Math.ceil(count / query.$limit);
+                      pages.next = pages.current + 1;
+                      pages.hasNext = pages.next <= pages.total;
+                      pages.prev = pages.current - 1;
+                      pages.hasPrev = pages.prev !== 0;
+                      if (items.begin > items.total) {
+                        items.begin = items.total;
+                      }
+                      if (items.end > items.total) {
+                        items.end = items.total;
+                      }
+
+                      return { docs: result, pages: pages, items: items };
+                    })
+                    .catch(function (error) {
+                      const message = "There was a postprocessing error.";
+                      if (!logError) {
+                        Log.error(message);
+                        logError = true;
+                        delete error.type;
+                      }
+                      errorHelper.handleError(error, message, errorHelper.types.BAD_REQUEST, Log);
+                    })
               })
               .catch(function (error) {
-                const message = "There was a postprocessing error.";
+                const message = "There was an error accessing the database.";
                 if (!logError) {
                   Log.error(message);
                   logError = true;
                   delete error.type;
                 }
-                errorHelper.handleError(error, message, errorHelper.types.BAD_REQUEST, Log);
-              })
+                errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+              });
         })
         .catch(function (error) {
-          const message = "There was an error accessing the database.";
+          const message = "There was a preprocessing error.";
           if (!logError) {
             Log.error(message);
             logError = true;
             delete error.type;
           }
-          errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+          errorHelper.handleError(error, message, errorHelper.types.BAD_REQUEST, Log);
         });
   }
   catch(error) {
@@ -421,7 +441,7 @@ function _listHandler(model, request, Log) {
 
 
 /**
- * List function exposed as a mongoose wrapper.
+ * Find function exposed as a mongoose wrapper.
  * @param model: A mongoose model.
  * @param _id: The document id.
  * @param query: rest-hapi query parameters to be converted to a mongoose query.
@@ -446,82 +466,101 @@ function _findHandler(model, _id, request, Log) {
   let query = extend({}, request.query);
   let logError = false;
   try {
-    var flatten = false;
-    if (query.$flatten) {
-      flatten = true;
+    var promise = {};
+    if (model.routeOptions && model.routeOptions.find && model.routeOptions.find.pre) {
+      promise = model.routeOptions.find.pre(_id, query, request, Log);
+    } else {
+      promise = Q.when(query);
     }
-    delete query.$flatten;
-    var mongooseQuery = model.findOne({ '_id': _id });
-    mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log).lean();
-    return mongooseQuery.exec()
-        .then(function (result) {
-          if (result) {
-            var promise = {};
-            if (model.routeOptions && model.routeOptions.find && model.routeOptions.find.post) {
-              promise = model.routeOptions.find.post(request, result, Log);
-            } else {
-              promise = Q.when(result);
-            }
 
-            return promise
-                .then(function(data) {
-                  if (model.routeOptions) {
-                    var associations = model.routeOptions.associations;
-                    for (var associationKey in associations) {
-                      var association = associations[associationKey];
-                      if (association.type === "ONE_MANY" && data[associationKey]) {//EXPL: we have to manually populate the return value for virtual (e.g. ONE_MANY) associations
-                        result[associationKey] = data[associationKey];
-                      }
-                      if (association.type === "MANY_MANY" && flatten === true) {//EXPL: remove additional fields and return a flattened array
-                        if (result[associationKey]) {
-                          result[associationKey] = result[associationKey].map(function(object) {
-                            object = object[association.model];
-                            return object;
-                          })
+    return promise
+        .then(function (query){
+          var flatten = false;
+          if (query.$flatten) {
+            flatten = true;
+          }
+          delete query.$flatten;
+          var mongooseQuery = model.findOne({ '_id': _id });
+          mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log).lean();
+          return mongooseQuery.exec()
+              .then(function (result) {
+                if (result) {
+                  var promise = {};
+                  if (model.routeOptions && model.routeOptions.find && model.routeOptions.find.post) {
+                    promise = model.routeOptions.find.post(request, result, Log);
+                  } else {
+                    promise = Q.when(result);
+                  }
+
+                  return promise
+                      .then(function(data) {
+                        if (model.routeOptions) {
+                          var associations = model.routeOptions.associations;
+                          for (var associationKey in associations) {
+                            var association = associations[associationKey];
+                            if (association.type === "ONE_MANY" && data[associationKey]) {//EXPL: we have to manually populate the return value for virtual (e.g. ONE_MANY) associations
+                              result[associationKey] = data[associationKey];
+                            }
+                            if (association.type === "MANY_MANY" && flatten === true) {//EXPL: remove additional fields and return a flattened array
+                              if (result[associationKey]) {
+                                result[associationKey] = result[associationKey].map(function(object) {
+                                  object = object[association.model];
+                                  return object;
+                                })
+                              }
+                            }
+                          }
                         }
-                      }
-                    }
-                  }
 
-                  if (config.enableSoftDelete && config.filterDeletedEmbeds) {//EXPL: remove soft deleted documents from populated properties
-                    filterDeletedEmbeds(result, {}, "", 0, Log);
-                  }
+                        if (config.enableSoftDelete && config.filterDeletedEmbeds) {//EXPL: remove soft deleted documents from populated properties
+                          filterDeletedEmbeds(result, {}, "", 0, Log);
+                        }
 
-                  if (result._id) {//TODO: handle this with mongoose/global preware
-                    result._id = result._id.toString();//EXPL: _id must be a string to pass validation
-                  }
+                        if (result._id) {//TODO: handle this with mongoose/global preware
+                          result._id = result._id.toString();//EXPL: _id must be a string to pass validation
+                        }
 
-                  Log.log("Result: %s", JSON.stringify(result));
+                        Log.log("Result: %s", JSON.stringify(result));
 
-                  return result;
-                })
-                .catch(function (error) {
-                  const message = "There was a postprocessing error.";
+                        return result;
+                      })
+                      .catch(function (error) {
+                        const message = "There was a postprocessing error.";
+                        if (!logError) {
+                          Log.error(message);
+                          logError = true;
+                          delete error.type;
+                        }
+                        errorHelper.handleError(error, message, errorHelper.types.BAD_REQUEST, Log);
+                      });
+                }
+                else {
+                  const message = "No resource was found with that id.";
                   if (!logError) {
                     Log.error(message);
                     logError = true;
-                    delete error.type;
                   }
-                  errorHelper.handleError(error, message, errorHelper.types.BAD_REQUEST, Log);
-                });
-          }
-          else {
-            const message = "No resource was found with that id.";
-            if (!logError) {
-              Log.error(message);
-              logError = true;
-            }
-            errorHelper.handleError(message, message, errorHelper.types.NOT_FOUND, Log);
-          }
+                  errorHelper.handleError(message, message, errorHelper.types.NOT_FOUND, Log);
+                }
+              })
+              .catch(function (error) {
+                const message = "There was an error accessing the database.";
+                if (!logError) {
+                  Log.error(message);
+                  logError = true;
+                  delete error.type;
+                }
+                errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+              });
         })
-        .catch(function (error) {
-          const message = "There was an error accessing the database.";
+        .catch(function(error) {
+          const message = "There was an error preprocessing the request.";
           if (!logError) {
             Log.error(message);
             logError = true;
             delete error.type;
           }
-          errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+          errorHelper.handleError(error, message, errorHelper.types.BAD_REQUEST, Log);
         });
   }
   catch(error) {
@@ -1157,7 +1196,8 @@ function _addManyHandler(ownerModel, ownerId, childModel, associationName, reque
         .then(function (ownerObject) {
           if (ownerObject) {
             var childIds = [];
-            if (typeof payload[0] === 'string' || payload[0] instanceof String) {//EXPL: the payload is an array of Ids
+            //EXPL: the payload is an array of Ids
+            if (typeof payload[0] === 'string' || payload[0] instanceof String || payload[0]._bsontype === "ObjectID") {
               childIds = payload;
             }
             else {//EXPL: the payload contains extra fields
@@ -1485,7 +1525,8 @@ function _setAssociation(ownerModel, ownerObject, childModel, childId, associati
             promise = childObject.save();
           }
           else if (association.type === "MANY_MANY") {
-            if (typeof payload[0] === 'string' || payload[0] instanceof String) {//EXPL: the payload is an array of Ids. No extra fields
+            //EXPL: the payload is an array of Ids. No extra fields
+            if (typeof payload[0] === 'string' || payload[0] instanceof String || payload[0]._bsontype === "ObjectID") {
               payload = {};
 
               extraFields = false;
