@@ -410,7 +410,7 @@ function _listHandler(model, request, Log) {
                   logError = true;
                   delete error.type;
                 }
-                errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+                errorHelper.handleError(error, message, errorHelper.types.BAD_IMPLEMENTATION, Log);
               });
         })
         .catch(function (error) {
@@ -550,7 +550,7 @@ function _findHandler(model, _id, request, Log) {
                   logError = true;
                   delete error.type;
                 }
-                errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+                errorHelper.handleError(error, message, errorHelper.types.BAD_IMPLEMENTATION, Log);
               });
         })
         .catch(function(error) {
@@ -687,7 +687,7 @@ function _createHandler(model, request, Log) {
                   logError = true;
                   delete error.type;
                 }
-                errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+                errorHelper.handleError(error, message, errorHelper.types.BAD_IMPLEMENTATION, Log);
               });
         })
         .catch(function (error) {
@@ -812,7 +812,7 @@ function _updateHandler(model, _id, request, Log) {
                   logError = true;
                   delete error.type;
                 }
-                errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+                errorHelper.handleError(error, message, errorHelper.types.BAD_IMPLEMENTATION, Log);
               });
         })
         .catch(function (error) {
@@ -932,7 +932,7 @@ function _deleteOneHandler(model, _id, hardDelete, request, Log) {
                   logError = true;
                   delete error.type;
                 }
-                errorHelper.handleError(error, message, errorHelper.types.SERVER_TIMEOUT, Log);
+                errorHelper.handleError(error, message, errorHelper.types.BAD_IMPLEMENTATION, Log);
               });
         })
         .catch(function (error) {
