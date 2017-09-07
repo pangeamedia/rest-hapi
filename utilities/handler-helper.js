@@ -871,12 +871,17 @@ function _deleteOneHandler(model, _id, hardDelete, request, Log) {
     }
 
     return promise
-        .then(function () {
+        .then(function (query) {
+          query = query || {};
+
+          let mongooseQuery = model.findById(_id);
+          mongooseQuery = QueryHelper.createMongooseQuery(model, query, mongooseQuery, Log);
+
           if (config.enableSoftDelete && !hardDelete) {
-            promise = model.findByIdAndUpdate(_id, { isDeleted: true, deletedAt: new Date() }, {new: true});
+            promise = mongooseQuery.findOneAndUpdate(_id, { isDeleted: true, deletedAt: new Date() }, {new: true});
           }
           else {
-            promise = model.findByIdAndRemove(_id);
+            promise = mongooseQuery.findOneAndRemove();
           }
           return promise
               .then(function (deleted) {//TODO: clean up associations/set rules for ON DELETE CASCADE/etc.

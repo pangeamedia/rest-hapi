@@ -2147,9 +2147,9 @@ test('handler-helper.deleteOneHandler', function(t) {
         });
       })
 
-      //handler-helper.deleteOneHandler calls model.findByIdAndRemove
+      //handler-helper.deleteOneHandler calls model.findById
       .then(function() {
-        return t.test('handler-helper.deleteOneHandler calls model.findByIdAndRemove', function (t) {
+        return t.test('handler-helper.deleteOneHandler calls model.findById', function (t) {
           //<editor-fold desc="Arrange">
           var sandbox = sinon.sandbox.create();
           var Log = logger.bind("handler-helper");
@@ -2161,19 +2161,72 @@ test('handler-helper.deleteOneHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          var deferred = Q.defer();
-          userModel.findByIdAndRemove = sandbox.spy(function(){ return deferred.resolve() });
+          var findDeferred = Q.defer();
+          userModel.findById = sandbox.spy(function(){ return findDeferred.resolve() });
 
-          var request = { query: {}, params: { _id: "TEST" } };
+          var request = { query: {}, params: { _id: "_id" } };
           //</editor-fold>
 
           //<editor-fold desc="Act">
-          handlerHelper.deleteOneHandler(userModel, "TEST", false, request, Log);
+          handlerHelper.deleteOneHandler(userModel, "_id", false, request, Log);
           //</editor-fold>
 
           //<editor-fold desc="Assert">
-          return deferred.promise.then(function() {
-            t.ok(userModel.findByIdAndRemove.calledWithExactly("TEST"), "model.findByIdAndRemove called");
+          return findDeferred.promise.then(function() {
+            t.ok(userModel.findById.calledWithExactly("_id"), "model.findById called");
+          })
+          //</editor-fold>
+
+          //<editor-fold desc="Restore">
+              .then(function(){
+                sandbox.restore();
+                delete mongoose.models.user;
+                delete mongoose.modelSchemas.user;
+              });
+          //</editor-fold>
+        });
+      })
+
+      //handler-helper.deleteOneHandler calls QueryHelper.createMongooseQuery
+      .then(function() {
+        return t.test('handler-helper.deleteOneHandler calls model.findById', function (t) {
+          //<editor-fold desc="Arrange">
+          var sandbox = sinon.sandbox.create();
+          var Log = logger.bind("handler-helper");
+          var server = sandbox.spy();
+          var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          var errorHelperStub = sandbox.stub(require('../utilities/error-helper'));
+          var handlerHelper = proxyquire('../utilities/handler-helper', {
+            './query-helper': queryHelperStub,
+            './error-helper': errorHelperStub
+          });
+          sandbox.stub(Log, 'error', function(){});
+
+          var userSchema = new mongoose.Schema({});
+          userSchema.statics = {
+            routeOptions: {
+              delete: {
+                pre: function(){
+                  return Q.when("QUERY");
+                }
+              }
+            }
+          };
+
+          var userModel = mongoose.model("user", userSchema);
+          var findDeferred = Q.defer();
+          userModel.findById = sandbox.spy(function(){ return "TEST" });
+
+          var request = { query: {}, params: { _id: "_id" } };
+          //</editor-fold>
+
+          //<editor-fold desc="Act">
+          var promise = handlerHelper.deleteOneHandler(userModel, "_id", false, request, Log);
+          //</editor-fold>
+
+          //<editor-fold desc="Assert">
+          return promise.then(function() {
+            t.ok(queryHelperStub.createMongooseQuery.calledWithExactly(userModel, "QUERY", "TEST", Log), "queryHelperStub.createMongooseQuery called");
           })
           //</editor-fold>
 
@@ -2194,7 +2247,16 @@ test('handler-helper.deleteOneHandler', function(t) {
           var sandbox = sinon.sandbox.create();
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
+          var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndRemove: function () {
+                return Q.when("DELETED");
+              }
+            }
+          };
           var handlerHelper = proxyquire('../utilities/handler-helper', {
+            './query-helper': queryHelperStub
           });
           sandbox.stub(Log, 'error', function(){});
 
@@ -2210,7 +2272,7 @@ test('handler-helper.deleteOneHandler', function(t) {
           };
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndRemove = sandbox.spy(function(){ return Q.when("DELETED") });
+          userModel.findById = sandbox.spy(function(){ return "TEST" });
 
           var request = { query: {}, params: { _id: "TEST" } };
           //</editor-fold>
@@ -2242,20 +2304,29 @@ test('handler-helper.deleteOneHandler', function(t) {
           var sandbox = sinon.sandbox.create();
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
+          var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndRemove: function () {
+                return Q.when("DELETED");
+              }
+            }
+          };
           var handlerHelper = proxyquire('../utilities/handler-helper', {
+            './query-helper': queryHelperStub
           });
           sandbox.stub(Log, 'error', function(){});
 
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndRemove = sandbox.spy(function(){ return Q.when("DELETED") });
+          userModel.findById = sandbox.spy(function(){ return Q.when("TEST") });
 
-          var request = { query: {}, params: { _id: "TEST" } };
+          var request = { query: {}, params: { _id: "_id" } };
           //</editor-fold>
 
           //<editor-fold desc="Act">
-          var promise = handlerHelper.deleteOneHandler(userModel, "TEST", request, Log);
+          var promise = handlerHelper.deleteOneHandler(userModel, "_id", request, Log);
           //</editor-fold>
 
           //<editor-fold desc="Assert">
@@ -2281,8 +2352,17 @@ test('handler-helper.deleteOneHandler', function(t) {
           var sandbox = sinon.sandbox.create();
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
+          var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndRemove: function () {
+                return Q.when("DELETED");
+              }
+            }
+          };
           var boomStub = sandbox.stub(require('boom'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
+            './query-helper': queryHelperStub,
             'boom': boomStub
           });
           sandbox.stub(Log, 'error', function(){});
@@ -2297,13 +2377,13 @@ test('handler-helper.deleteOneHandler', function(t) {
           };
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndRemove = sandbox.spy(function(){ return Q.when("DELETED") });
+          userModel.findById = sandbox.spy(function(){ return Q.when("TEST") });
 
-          var request = { query: {}, params: { _id: "TEST" } };
+          var request = { query: {}, params: { _id: "_id" } };
           //</editor-fold>
 
           //<editor-fold desc="Act">
-          var promise = handlerHelper.deleteOneHandler(userModel, "TEST", false, request, Log);
+          var promise = handlerHelper.deleteOneHandler(userModel, "_id", false, request, Log);
           //</editor-fold>
 
           //<editor-fold desc="Assert">
@@ -2330,8 +2410,17 @@ test('handler-helper.deleteOneHandler', function(t) {
           var sandbox = sinon.sandbox.create();
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
+          var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndRemove: function () {
+                return Q.when();
+              }
+            }
+          };
           var boomStub = sandbox.stub(require('boom'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
+            './query-helper': queryHelperStub,
             'boom': boomStub
           });
           sandbox.stub(Log, 'error', function(){});
@@ -2339,13 +2428,13 @@ test('handler-helper.deleteOneHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndRemove = sandbox.spy(function(){ return Q.when() });
+          userModel.findById = sandbox.spy(function(){ return Q.when("TEST") });
 
-          var request = { query: {}, params: { _id: "TEST" } };
+          var request = { query: {}, params: { _id: "_id" } };
           //</editor-fold>
 
           //<editor-fold desc="Act">
-          var promise = handlerHelper.deleteOneHandler(userModel, "TEST", false, request, Log);
+          var promise = handlerHelper.deleteOneHandler(userModel, "_id", false, request, Log);
           //</editor-fold>
 
           //<editor-fold desc="Assert">
