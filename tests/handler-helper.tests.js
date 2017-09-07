@@ -2535,9 +2535,9 @@ test('handler-helper.updateHandler', function(t) {
         });
       })
 
-      //handler-helper.updateHandler calls model.findByIdAndUpdate
+      //handler-helper.updateHandler calls model.findById
       .then(function() {
-        return t.test('handler-helper.updateHandler calls model.findByIdAndUpdate', function (t) {
+        return t.test('handler-helper.updateHandler calls model.findById', function (t) {
           //<editor-fold desc="Arrange">
           var sandbox = sinon.sandbox.create();
           var Log = logger.bind("handler-helper");
@@ -2553,8 +2553,8 @@ test('handler-helper.updateHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          var updateDeferred = Q.defer();
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return updateDeferred.resolve() });
+          var findDeferred = Q.defer();
+          userModel.findById = sandbox.spy(function(){ return findDeferred.resolve() });
 
           var payload = { field: "value" };
           var request = { query: {}, params: { _id: "_id" }, payload: payload };
@@ -2565,9 +2565,60 @@ test('handler-helper.updateHandler', function(t) {
           //</editor-fold>
 
           //<editor-fold desc="Assert">
-          return updateDeferred.promise.then(function() {
-            // use sinon.match to allow for added date fields
-            t.ok(userModel.findByIdAndUpdate.calledWithExactly("_id", sinon.match(payload)), "model.findByIdAndUpdate called");
+          return findDeferred.promise.then(function() {
+            t.ok(userModel.findById.calledWithExactly("_id"), "model.findById called");
+          })
+          //</editor-fold>
+
+          //<editor-fold desc="Restore">
+              .then(function(){
+                sandbox.restore();
+                delete mongoose.models.user;
+                delete mongoose.modelSchemas.user;
+              });
+          //</editor-fold>
+        });
+      })
+
+      //handler-helper.updateHandler calls QueryHelper.createMongooseQuery
+      .then(function() {
+        return t.test('handler-helper.updateHandler calls QueryHelper.createMongooseQuery', function (t) {
+          //<editor-fold desc="Arrange">
+          var sandbox = sinon.sandbox.create();
+          var Log = logger.bind("handler-helper");
+          var server = sandbox.spy();
+          var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          var errorHelperStub = sandbox.stub(require('../utilities/error-helper'));
+          var handlerHelper = proxyquire('../utilities/handler-helper', {
+            './query-helper': queryHelperStub,
+            './error-helper': errorHelperStub
+          });
+          sandbox.stub(Log, 'error', function(){});
+
+          var userSchema = new mongoose.Schema({});
+          userSchema.statics = {
+            routeOptions: {
+              update: {
+                pre: function(){
+                  return Q.when({ $query: "QUERY" });
+                }
+              }
+            }
+          };
+
+          var userModel = mongoose.model("user", userSchema);
+          userModel.findById = sandbox.spy(function(){ return "TEST" });
+
+          var request = { query: {}, params: { _id: "_id" }, payload: {} };
+          //</editor-fold>
+
+          //<editor-fold desc="Act">
+          var promise = handlerHelper.updateHandler(userModel, "_id", {}, Log);
+          //</editor-fold>
+
+          //<editor-fold desc="Assert">
+          return promise.then(function() {
+            t.ok(queryHelperStub.createMongooseQuery.calledWithExactly(userModel, "QUERY", "TEST", Log), "queryHelperStub.createMongooseQuery called");
           })
           //</editor-fold>
 
@@ -2589,6 +2640,13 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndUpdate: function () {
+                return Q.when({ _id: "TEST" });
+              }
+            }
+          };
           var deferred = Q.defer();
           queryHelperStub.createAttributesFilter = sandbox.spy(function(){ return deferred.resolve() });
           var errorHelperStub = sandbox.stub(require('../utilities/error-helper'));
@@ -2601,9 +2659,16 @@ test('handler-helper.updateHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return Q.when({}) });
+          userModel.findById = sandbox.spy(function(){ return {} });
+          userModel.findOne = sandbox.spy(function(){
+            return {
+              lean: function(){
+                return Q.when("TEST");
+              }
+            };
+          });
 
-          var request = { query: "TEST", params: { _id: "_id" }, payload: {} };
+          var request = { query: {}, params: { _id: "_id" }, payload: {} };
           //</editor-fold>
 
           //<editor-fold desc="Act">
@@ -2612,9 +2677,6 @@ test('handler-helper.updateHandler', function(t) {
 
           //<editor-fold desc="Assert">
           return deferred.promise.then(function() {
-            // TODO this test previously expected createAttributesFilter to be called with request.query,
-            //      but the code currently calls it with a hard-coded {}
-            //      which is correct?
             t.ok(queryHelperStub.createAttributesFilter.calledWithExactly({}, userModel, Log), "queryHelperStub.createAttributesFilter called");
           })
           //</editor-fold>
@@ -2637,6 +2699,13 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndUpdate: function () {
+                return Q.when({ _id: "TEST" });
+              }
+            }
+          };
           queryHelperStub.createAttributesFilter = function(){ return "attributes" };
           var errorHelperStub = sandbox.stub(require('../utilities/error-helper'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
@@ -2648,7 +2717,7 @@ test('handler-helper.updateHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return Q.when({ _id: "TEST" }) });
+          userModel.findById = sandbox.spy(function(){ return {} });
           var deferred = Q.defer();
           userModel.findOne = sandbox.spy(function(){ return deferred.resolve() });
 
@@ -2683,6 +2752,13 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndUpdate: function () {
+                return Q.when({ _id: "TEST" });
+              }
+            }
+          };
           var errorHelperStub = sandbox.stub(require('../utilities/error-helper'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
             './query-helper': queryHelperStub,
@@ -2702,7 +2778,7 @@ test('handler-helper.updateHandler', function(t) {
           };
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return Q.when({ _id: {} }) });
+          userModel.findById = sandbox.spy(function(){ return {} });
           userModel.findOne = sandbox.spy(function(){
             return {
               lean: function(){
@@ -2742,6 +2818,13 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndUpdate: function () {
+                return Q.when({ _id: "TEST" });
+              }
+            }
+          };
           var errorHelperStub = sandbox.stub(require('../utilities/error-helper'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
             './query-helper': queryHelperStub,
@@ -2752,7 +2835,7 @@ test('handler-helper.updateHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return Q.when({ _id: {} }) });
+          userModel.findById = sandbox.spy(function(){ return {} });
           userModel.findOne = sandbox.spy(function(){
             return {
               lean: function(){
@@ -2792,6 +2875,13 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndUpdate: function () {
+                return Q.when({ _id: "TEST" });
+              }
+            }
+          };
           queryHelperStub.createAttributesFilter = function(){ return "attributes" };
           var boomStub = sandbox.stub(require('boom'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
@@ -2810,7 +2900,7 @@ test('handler-helper.updateHandler', function(t) {
           };
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return Q.when({ _id: {} }) });
+          userModel.findById = sandbox.spy(function(){ return {} });
           userModel.findOne = sandbox.spy(function(){
             return {
               lean: function(){
@@ -2851,6 +2941,13 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndUpdate: function () {
+                return Q.when();
+              }
+            }
+          };
           queryHelperStub.createAttributesFilter = function(){ return "attributes" };
           var boomStub = sandbox.stub(require('boom'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
@@ -2862,7 +2959,7 @@ test('handler-helper.updateHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return Q.when() });
+          userModel.findById = sandbox.spy(function(){ return {} });
 
           var request = { query: {}, params: { _id: "_id" }, payload: {} };
           //</editor-fold>
@@ -2896,6 +2993,13 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
+          queryHelperStub.createMongooseQuery = function () {
+            return {
+              findOneAndUpdate: function () {
+                return Q.reject("error message");
+              }
+            }
+          };
           queryHelperStub.createAttributesFilter = function(){ return "attributes" };
           var boomStub = sandbox.stub(require('boom'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
@@ -2907,7 +3011,7 @@ test('handler-helper.updateHandler', function(t) {
           var userSchema = new mongoose.Schema({});
 
           var userModel = mongoose.model("user", userSchema);
-          userModel.findByIdAndUpdate = sandbox.spy(function(){ return Q.reject("error message") });
+          userModel.findById = sandbox.spy(function(){ return {} });
 
           var request = { query: {}, params: { _id: "_id" }, payload: {} };
           //</editor-fold>
@@ -2941,7 +3045,6 @@ test('handler-helper.updateHandler', function(t) {
           var Log = logger.bind("handler-helper");
           var server = sandbox.spy();
           var queryHelperStub = sandbox.stub(require('../utilities/query-helper'));
-          queryHelperStub.createAttributesFilter = function(){ return "attributes" };
           var boomStub = sandbox.stub(require('boom'));
           var handlerHelper = proxyquire('../utilities/handler-helper', {
             './query-helper': queryHelperStub,
